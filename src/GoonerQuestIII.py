@@ -25,8 +25,22 @@ STAR_WIDTH = 20
 STAR_HEIGHT = 90
 STAR_VEL = 4
 
-star_image= pygame.transform.scale(pygame.image.load("missile2.png").convert_alpha(), (STAR_WIDTH, STAR_HEIGHT))
-big_star = pygame.transform.scale(pygame.image.load("missile2.png").convert_alpha(), (2*STAR_WIDTH, 2*STAR_HEIGHT))
+missile_source = pygame.image.load("missile2.png").convert_alpha()
+rona_source = pygame.image.load("rona.png").convert_alpha()
+
+def scale_to_height(image, target_height):
+    width, height = image.get_size()
+    scaled_width = max(1, int(width * (target_height / height)))
+    return pygame.transform.smoothscale(image, (scaled_width, target_height))
+
+small_projectile_variants = [
+    {"image": scale_to_height(missile_source, STAR_HEIGHT), "rotates": False},
+    {"image": scale_to_height(rona_source, STAR_HEIGHT), "rotates": True}
+]
+big_projectile_variants = [
+    {"image": scale_to_height(missile_source, 2 * STAR_HEIGHT), "rotates": False},
+    {"image": scale_to_height(rona_source, 2 * STAR_HEIGHT), "rotates": True}
+]
 
 FONT = pygame.font.SysFont("comicsans", 30)
 
@@ -47,9 +61,13 @@ def draw(player, player_sprite, elapsed_time, stars, bstars, trail_points):
     WIN.blit(player_sprite, (player.x-15, player.y))
 
     for star in stars:
-        WIN.blit(star_image, star)
+        rotated_star = pygame.transform.rotate(star["image"], star["angle"])
+        rotated_star_rect = rotated_star.get_rect(center=star["rect"].center)
+        WIN.blit(rotated_star, rotated_star_rect.topleft)
     for bstar in bstars:
-        WIN.blit(big_star, bstar)
+        rotated_bstar = pygame.transform.rotate(bstar["image"], bstar["angle"])
+        rotated_bstar_rect = rotated_bstar.get_rect(center=bstar["rect"].center)
+        WIN.blit(rotated_bstar, rotated_bstar_rect.topleft)
 
     pygame.display.update()
 
@@ -75,19 +93,37 @@ def main():
 
 
     while run:
-        star_count += clock.tick(60)
+        frame_time_ms = clock.tick(60)
+        star_count += frame_time_ms
+        delta_time = frame_time_ms / 1000
         elapsed_time = time.time() - start_time
 
 
 
         if star_count > star_add_increment:
             for _ in range(5+int(elapsed_time/10)):
-                star_x = random.randint(0, WIDTH - STAR_WIDTH)
-                star = pygame.Rect(star_x, -STAR_HEIGHT, STAR_WIDTH, STAR_HEIGHT)
+                star_variant = random.choice(small_projectile_variants)
+                star_sprite = star_variant["image"]
+                star_width, star_height = star_sprite.get_size()
+                star_x = random.randint(0, WIDTH - star_width)
+                star = {
+                    "rect": pygame.Rect(star_x, -star_height, star_width, star_height),
+                    "image": star_sprite,
+                    "angle": random.uniform(0, 360) if star_variant["rotates"] else 0,
+                    "spin": random.uniform(55, 90) if star_variant["rotates"] else 0
+                }
                 stars.append(star)
             for _ in range(2*int(elapsed_time/30)):
-                bstar_x = random.randint(0, WIDTH - 2*STAR_WIDTH)
-                bstar = pygame.Rect(bstar_x, -2*STAR_HEIGHT, 2*STAR_WIDTH, 2*STAR_HEIGHT)
+                bstar_variant = random.choice(big_projectile_variants)
+                bstar_sprite = bstar_variant["image"]
+                bstar_width, bstar_height = bstar_sprite.get_size()
+                bstar_x = random.randint(0, WIDTH - bstar_width)
+                bstar = {
+                    "rect": pygame.Rect(bstar_x, -bstar_height, bstar_width, bstar_height),
+                    "image": bstar_sprite,
+                    "angle": random.uniform(0, 360) if bstar_variant["rotates"] else 0,
+                    "spin": random.uniform(35, 60) if bstar_variant["rotates"] else 0
+                }
                 bstars.append(bstar)
 
             star_add_increment = max(800, star_add_increment- 3)
@@ -120,18 +156,20 @@ def main():
         trail_points = [point for point in trail_points if elapsed_time - point[2] < TRAIL_LIFETIME]
 
         for star in stars[:]:
-            star.y += STAR_VEL + int(elapsed_time/20)
-            if star.y > HEIGHT:
+            star["rect"].y += STAR_VEL + int(elapsed_time/20)
+            star["angle"] = (star["angle"] + star["spin"] * delta_time) % 360
+            if star["rect"].y > HEIGHT:
                 stars.remove(star)
-            elif star.y + star.height -20 >= player.y and star.colliderect(player):
+            elif star["rect"].y + star["rect"].height -20 >= player.y and star["rect"].colliderect(player):
                 stars.remove(star)
                 hit = True
                 break
         for bstar in bstars[:]:
-            bstar.y += STAR_VEL + int(elapsed_time/20)
-            if bstar.y > HEIGHT:
+            bstar["rect"].y += STAR_VEL + int(elapsed_time/20)
+            bstar["angle"] = (bstar["angle"] + bstar["spin"] * delta_time) % 360
+            if bstar["rect"].y > HEIGHT:
                 bstars.remove(bstar)
-            elif bstar.y + bstar.height -20 >= player.y and bstar.colliderect(player):
+            elif bstar["rect"].y + bstar["rect"].height -20 >= player.y and bstar["rect"].colliderect(player):
                 bstars.remove(bstar)
                 hit = True
                 break
